@@ -1,154 +1,130 @@
 import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Locale; // Importado para consistência na formatação de números
 
 public abstract class Produto implements Comparable<Produto>{
-	
+
 	private static final double MARGEM_PADRAO = 0.2;
 	private static int ultimoID = 10_000;
-	
+
 	protected int idProduto;
 	protected String descricao;
 	protected double precoCusto;
 	protected double margemLucro;
-	
-	/**
-     * Inicializador privado. Os valores default, em caso de erro, são:
-     * "Produto sem descrição", R$ 0.00, 0.0  
-     * @param desc Descrição do produto (mínimo de 3 caracteres)
-     * @param precoCusto Preço do produto (mínimo 0.01)
-     * @param margemLucro Margem de lucro (mínimo 0.01)
-     */
+
 	private void init(String desc, double precoCusto, double margemLucro) {
-		
-		if ((desc.length() >= 3) && (precoCusto > 0.0) && (margemLucro > 0.0)) {
-			descricao = desc;
-			this.precoCusto = precoCusto;
-			this.margemLucro = margemLucro;
-			idProduto = ultimoID++;
-		} else {
-			throw new IllegalArgumentException("Valores inválidos para os dados do produto.");
-		}
+		if (desc == null || desc.trim().length() < 3) {
+             throw new IllegalArgumentException("Descrição inválida ou muito curta: " + desc);
+        }
+        if (precoCusto <= 0.0) {
+             throw new IllegalArgumentException("Preço de custo deve ser positivo: " + precoCusto);
+        }
+        if (margemLucro <= 0.0) {
+             throw new IllegalArgumentException("Margem de lucro deve ser positiva: " + margemLucro);
+        }
+
+		this.descricao = desc.trim();
+		this.precoCusto = precoCusto;
+		this.margemLucro = margemLucro;
+		this.idProduto = ultimoID++;
 	}
-	
-	/**
-     * Construtor completo. Os valores default, em caso de erro, são:
-     * "Produto sem descrição", R$ 0.00, 0.0  
-     * @param desc Descrição do produto (mínimo de 3 caracteres)
-     * @param precoCusto Preço do produto (mínimo 0.01)
-     * @param margemLucro Margem de lucro (mínimo 0.01)
-     */
+
 	protected Produto(String desc, double precoCusto, double margemLucro) {
 		init(desc, precoCusto, margemLucro);
 	}
-	
-	/**
-     * Construtor sem margem de lucro - fica considerado o valor padrão de margem de lucro.
-     * Os valores default, em caso de erro, são:
-     * "Produto sem descrição", R$ 0.00 
-     * @param desc Descrição do produto (mínimo de 3 caracteres)
-     * @param precoCusto Preço do produto (mínimo 0.01)
-     */
+
 	protected Produto(String desc, double precoCusto) {
 		init(desc, precoCusto, MARGEM_PADRAO);
 	}
-	
-	 /**
-     * Retorna o valor de venda do produto, considerando seu preço de custo e margem de lucro.
-     * @return Valor de venda do produto (double, positivo)
-     */
+
 	public abstract double valorDeVenda();
-	
-	/**
-     * Descrição, em string, do produto, contendo sua descrição e o valor de venda.
-     *  @return String com o formato:
-     * [NOME]: R$ [VALOR DE VENDA]
-     */
+
     @Override
 	public String toString() {
-    	
-    	NumberFormat moeda = NumberFormat.getCurrencyInstance();
-    	
-		return String.format("NOME: " + descricao + ": " + moeda.format(valorDeVenda()));
+    	NumberFormat moeda = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
+		return String.format("NOME: %s: %s", descricao, moeda.format(valorDeVenda()));
 	}
-    
+
     @Override
-    /**
-     * Retorna o código identificador do produto. É um valor único para cada produto (== chave).
-     * @return Inteiro positivo com o identificador do produto.
-     */
     public int hashCode(){
         return idProduto;
     }
 
-    /**
-     * Igualdade de produtos: caso possuam o mesmo código. 
-     * @param obj Outro produto a ser comparado 
-     * @return booleano true/false conforme o parâmetro possua o mesmo código identificador deste objeto
-     */
     @Override
     public boolean equals(Object obj){
-        try{
-            Produto outro = (Produto)obj;
-            return this.hashCode() == outro.hashCode();
-        }catch (ClassCastException ex){
-            return false;
-        }
+        if (this == obj) return true;
+        if (obj == null || !(obj instanceof Produto)) return false;
+        Produto outro = (Produto) obj;
+        return this.idProduto == outro.idProduto;
     }
-    
+
     @Override
-    /**
-     * Comparação padrão do produto: identificador/hash code.
-     * Retorna um valor negativo se este produto tem um identificador anterior ao outro produto,
-     * valor positivo se o identificador é posterior ao do outro produto. Para o mesmo produto, o
-     * retorno é 0.
-     * @param outro Produto a ser comparado
-     * @return Int de acordo com a regra padrão de Comparable (descrita acima)
-     */
     public int compareTo(Produto outro){
-    	if (this.idProduto == outro.idProduto)
-    		return 0;
-    	else if (this.idProduto < outro.idProduto)
-    		return -1;
-    	else
-    		return 1;
+    	return Integer.compare(this.idProduto, outro.idProduto);
     }
-    
-    /**
-     * Cria um produto a partir de uma linha de dados em formato texto. A linha de dados deve estar de acordo com a formatação
-     * "tipo;descrição;preçoDeCusto;margemDeLucro;[dataDeValidade]"
-     * ou o funcionamento não será garantido. Os tipos são 1, para produto não perecível; e 2, para perecível.
-     * @param linha Linha com os dados do produto a ser criado.
-     * @return Um produto com os dados recebidos
-     */
-    static Produto criarDoTexto(String linha) {
-     
-    	String[] dadosLinha;
+
+    public static Produto criarDoTexto(String linha) {
+        if (linha == null || linha.trim().isEmpty()) {
+            throw new IllegalArgumentException("Linha de dados do produto está vazia.");
+        }
+
+    	String[] dadosLinha = linha.split(";");
+    	if (dadosLinha.length < 4) {
+            throw new IllegalArgumentException("Formato inválido da linha de dados (mínimo 4 campos esperados): " + linha);
+        }
+
     	int tipo;
     	String descricao;
     	double precoCusto, margemLucro;
     	LocalDate dataDeValidade;
     	Produto produto;
-    	
-    	dadosLinha = linha.split(";");
-    	tipo = Integer.parseInt(dadosLinha[0]);
-    	descricao = dadosLinha[1];
-    	precoCusto = Double.parseDouble(dadosLinha[2].replace(",", "."));
-        margemLucro = Double.parseDouble(dadosLinha[3].replace(",", "."));
-        if (tipo == 2) {
-    		DateTimeFormatter formatoData = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    		dataDeValidade = LocalDate.parse(dadosLinha[4], formatoData);
-    		produto = new ProdutoPerecivel(descricao, precoCusto, margemLucro, dataDeValidade);
-    	} else {
-    		produto = new ProdutoNaoPerecivel(descricao, precoCusto, margemLucro);
-    	}
-    	
+
+    	try {
+            tipo = Integer.parseInt(dadosLinha[0].trim());
+            descricao = dadosLinha[1].trim();
+            precoCusto = Double.parseDouble(dadosLinha[2].trim().replace(",", "."));
+            margemLucro = Double.parseDouble(dadosLinha[3].trim().replace(",", "."));
+
+            if (tipo == 2) { 
+                if (dadosLinha.length < 5 || dadosLinha[4].trim().isEmpty()) {
+                     throw new IllegalArgumentException("Data de validade ausente ou vazia para produto perecível: " + linha);
+                }
+                DateTimeFormatter formatoData = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                dataDeValidade = LocalDate.parse(dadosLinha[4].trim(), formatoData);
+                produto = new ProdutoPerecivel(descricao, precoCusto, margemLucro, dataDeValidade);
+            } else if (tipo == 1) { 
+                produto = new ProdutoNaoPerecivel(descricao, precoCusto, margemLucro);
+            } else {
+                 throw new IllegalArgumentException("Tipo de produto inválido: " + tipo + " na linha: " + linha);
+            }
+        } catch (NumberFormatException e) {
+            throw new NumberFormatException("Erro ao converter número na linha: " + linha + " - " + e.getMessage());
+        } catch (DateTimeParseException e) {
+            throw new DateTimeParseException("Erro ao converter data (formato esperado dd/MM/yyyy) na linha: " + linha + " - " + e.getMessage(), e.getParsedString(), e.getErrorIndex());
+        } catch (IllegalArgumentException e) {
+             throw new IllegalArgumentException("Dados inválidos na linha: " + linha + " - " + e.getMessage());
+        }
+
     	return produto;
     }
-    	
-    /**
-     * Gera uma linha de texto a partir dos dados do produto.
-     * @return Uma string no formato "tipo;descrição;preçoDeCusto;margemDeLucro;[dataDeValidade]"
-     */
+
     public abstract String gerarDadosTexto();
+
+    public int getIdProduto() {
+        return idProduto;
+    }
+
+    public String getDescricao() {
+        return descricao;
+    }
+
+    public double getPrecoCusto() {
+        return precoCusto;
+    }
+
+    public double getMargemLucro() {
+        return margemLucro;
+    }
 }
