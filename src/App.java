@@ -1,6 +1,7 @@
 import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.util.Scanner;
+import java.util.function.Function;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -19,8 +20,9 @@ public class App {
     /** Quantidade de produtos cadastrados atualmente no vetor */
     static int quantosProdutos = 0;
 
-    /** Pilha de pedidos */
-    static Pilha<Pedido> pilhaPedidos = new Pilha<>();
+    /** Lista de pedidos */
+    static Lista<Pedido> listaPedidos = new Lista<>();
+
         
     static void limparTela() {
         System.out.print("\033[H\033[2J");
@@ -64,6 +66,8 @@ public class App {
         System.out.println("4 - Iniciar novo pedido");
         System.out.println("5 - Fechar pedido");
         System.out.println("6 - Listar produtos dos pedidos mais recentes");
+        System.out.println("7 - Exibir faturamento do comércio de produtos");
+        System.out.println("8 - Exibir quantidade de pedidos em determinado período");
         System.out.println("0 - Sair");
         System.out.print("Digite sua opção: ");
         return Integer.parseInt(teclado.nextLine());
@@ -101,8 +105,10 @@ public class App {
     	} catch (IOException excecaoArquivo) {
     		produtosCadastrados = null;
     	} finally {
-    		arquivo.close();
-    	}
+            if (arquivo != null) {
+                arquivo.close();
+            }
+        }
     	
     	return produtosCadastrados;
     }
@@ -127,30 +133,32 @@ public class App {
         
         return produto;   
     }
-    
+
     /** Localiza um produto no vetor de produtos cadastrados, a partir do nome de produto informado pelo usuário, e o retorna. 
-     *  A busca não é sensível ao caso. Em caso de não encontrar o produto, retorna null
-     *  @return O produto encontrado ou null, caso o produto não tenha sido localizado no vetor de produtos cadastrados.
-     */
-    static Produto localizarProdutoDescricao() {
-        
-    	Produto produto = null;
-    	Boolean localizado = false;
-    	String descricao;
-    	
-    	cabecalho();
-    	System.out.println("Localizando um produto...");
-    	System.out.println("Digite o nome ou a descrição do produto desejado:");
-        descricao = teclado.nextLine();
-        for (int i = 0; (i < quantosProdutos && !localizado); i++) {
-        	if (produtosCadastrados[i].descricao.equals(descricao)) {
-        		produto = produtosCadastrados[i];
-        		localizado = true;
-    		}
+ *  A busca não é sensível ao caso. Em caso de não encontrar o produto, retorna null
+ *  @return O produto encontrado ou null, caso o produto não tenha sido localizado no vetor de produtos cadastrados.
+ */
+static Produto localizarProdutoDescricao() {
+    
+    Produto produto = null;
+    Boolean localizado = false;
+    String descricao;
+    
+    cabecalho();
+    System.out.println("Localizando um produto...");
+    System.out.println("Digite o nome ou a descrição do produto desejado:");
+    descricao = teclado.nextLine().trim(); // TRIM remove espaços extras
+    
+    for (int i = 0; (i < quantosProdutos && !localizado); i++) {
+        // Comparação ignorando maiúsculas/minúsculas E espaços extras
+        if (produtosCadastrados[i].descricao.trim().equalsIgnoreCase(descricao)) {
+            produto = produtosCadastrados[i];
+            localizado = true;
         }
-        
-        return produto;
     }
+    
+    return produto;
+}
     
     private static void mostrarProduto(Produto produto) {
     	
@@ -203,17 +211,69 @@ public class App {
     }
     
     /**
-     * Finaliza um pedido, momento no qual ele deve ser armazenado em uma pilha de pedidos.
+     * Finaliza um pedido, momento no qual ele deve ser armazenado na lista de pedidos.
      * @param pedido O pedido que deve ser finalizado.
      */
     public static void finalizarPedido(Pedido pedido) {
-    	
-    	// TODO
+        if (pedido == null) {
+            System.out.println("Erro: Nenhum pedido foi iniciado ainda!");
+            return;
+        }
+        listaPedidos.inserir(pedido, listaPedidos.tamanho());
+        System.out.println("Pedido finalizado e adicionado à lista!");
     }
     
-    public static void listarProdutosPedidosRecentes() {
-    	
-    	// TODO
+    /**
+     * Lista os produtos dos pedidos mais recentes (últimos 3 pedidos)
+     */
+    public static void listarProdutosPedidosPrimeiro() {
+        cabecalho();
+        if (listaPedidos.vazia()) {
+            System.out.println("Nenhum pedido cadastrado ainda.");
+            return;
+        }
+        
+        System.out.println("PRODUTOS DOS PEDIDOS MAIS RECENTES:");
+        int inicio = Math.max(0, listaPedidos.tamanho() - 3);
+        for (int i = listaPedidos.tamanho() - 1; i >= inicio; i--) {
+            Pedido p = listaPedidos.obterElemento(i);
+            System.out.println("\n" + p);
+        }
+    }
+    
+    /** Exibe o faturamento total do comércio de produtos */
+    public static void obterFaturamento() {
+        cabecalho();
+        if (listaPedidos.vazia()) {
+            System.out.println("Nenhum pedido cadastrado ainda.");
+            return;
+        }
+
+        double faturamentoTotal = listaPedidos.obterSoma(p -> p.valorFinal());
+        System.out.printf("Faturamento do comércio de produtos: R$ %.2f%n", faturamentoTotal);
+    }
+
+    /** Conta os pedidos realizados entre duas datas informadas */
+    public static void contarPedidosPorData() {
+        cabecalho();
+        if (listaPedidos.vazia()) {
+            System.out.println("Nenhum pedido cadastrado ainda.");
+            return;
+        }
+
+        System.out.print("Informe a data inicial dos pedidos (dd/mm/aaaa): ");
+        String dataInicialStr = teclado.nextLine();
+        System.out.print("Informe a data final dos pedidos (dd/mm/aaaa): ");
+        String dataFinalStr = teclado.nextLine();
+
+        LocalDate dataInicial = LocalDate.parse(dataInicialStr, java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        LocalDate dataFinal = LocalDate.parse(dataFinalStr, java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+        int quantidade = listaPedidos.contar(p ->
+            p.getDataPedido().isAfter(dataInicial) && p.getDataPedido().isBefore(dataFinal)
+        );
+
+        System.out.printf("Quantidade de pedidos realizados entre as datas informadas: %d%n", quantidade);
     }
     
 	public static void main(String[] args) {
@@ -227,7 +287,7 @@ public class App {
         
         int opcao = -1;
       
-        do{
+        do {
             opcao = menu();
             switch (opcao) {
                 case 1 -> listarTodosOsProdutos();
@@ -235,10 +295,14 @@ public class App {
                 case 3 -> mostrarProduto(localizarProdutoDescricao());
                 case 4 -> pedido = iniciarPedido();
                 case 5 -> finalizarPedido(pedido);
-                case 6 -> listarProdutosPedidosRecentes();
+                case 6 -> listarProdutosPedidosPrimeiro();
+                case 7 -> obterFaturamento();
+                case 8 -> contarPedidosPorData();
+                case 0 -> System.out.println("Saindo do sistema...");
+                default -> System.out.println("Opção inválida!");
             }
             pausa();
-        }while(opcao != 0);       
+        } while(opcao != 0);
 
         teclado.close();    
     }

@@ -54,7 +54,11 @@ public class Pilha<E> {
 	 */
 	public Pilha<E> subPilha(int numItens) {
 		
-		// TODO
-		return null;
+		Pilha<E> novaPilha= new Pilha<>();
+		for(int i=0;i<numItens;i++){
+			E item= this.desempilhar();
+			novaPilha.empilhar(item);
+		}
+		return novaPilha;
 	}
 }
